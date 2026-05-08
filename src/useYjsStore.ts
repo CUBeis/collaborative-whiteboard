@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   createTLStore,
   defaultShapeUtils,
@@ -8,7 +8,6 @@ import type {
   TLRecord,
   TLStoreWithStatus
 } from 'tldraw'
-import { YKeyValue } from 'y-utility/y-keyvalue'
 import * as Y from 'yjs'
 import { WebrtcProvider } from 'y-webrtc'
 
@@ -25,48 +24,88 @@ export function useYjsStore({
     status: 'loading',
   })
 
-  useEffect(() => {
+  // Ensure store and ydoc are only created once per room
+  const { store, ydoc, provider } = useMemo(() => {
     const store = createTLStore({
       shapeUtils: [...defaultShapeUtils, ...shapeUtils],
     })
 
-    const doc = new Y.Doc()
-    const provider = new WebrtcProvider(roomId, doc)
-    const yArr = doc.getArray<{ key: string; val: TLRecord }>(`tl_${roomId}`)
-    const yStore = new YKeyValue(yArr)
+    const ydoc = new Y.Doc()
+    const provider = new WebrtcProvider(roomId, ydoc)
 
-    // 1. Sync tldraw -> Yjs
+    return { store, ydoc, provider }
+  }, [roomId, shapeUtils])
+
+  useEffect(() => {
+    const ymap = ydoc.getMap<TLRecord>('tldraw')
+
+    // 1. Sync Yjs -> tldraw
+    // When remote changes arrive via WebRTC, update our local Tldraw store
+    const handleChange = (event: Y.YMapEvent<TLRecord>) => {
+      const toRemove: TLRecord['id'][] = []
+      const toPut: TLRecord[] = []
+
+      event.changes.keys.forEach((change, key) => {
+        switch (change.action) {
+          case 'add':
+          case 'update':
+            {
+              const record = ymap.get(key)
+              if (record) {
+                toPut.push(record)
+              }
+            }
+            break
+          case 'delete':
+            toRemove.push(key as TLRecord['id'])
+            break
+        }
+      })
+
+      if (toRemove.length || toPut.length) {
+        store.mergeRemoteChanges(() => {
+          if (toRemove.length) store.remove(toRemove)
+          if (toPut.length) store.put(toPut)
+        })
+      }
+    }
+
+    ymap.observe(handleChange)
+
+    // 2. Sync tldraw -> Yjs
+    // When the user draws locally, send those changes to the Yjs document
+    let isInitialSync = true
+    
     const unlisten = store.listen(
-      (entry) => {
-        if (entry.source !== 'user') return
+      (history) => {
+        if (history.source !== 'user') return
 
-        doc.transact(() => {
-          Object.entries(entry.changes.added).forEach(([id, record]) => {
-            yStore.set(id, record)
+        ydoc.transact(() => {
+          Object.values(history.changes.added).forEach((record) => {
+            ymap.set(record.id, record)
           })
-          Object.entries(entry.changes.updated).forEach(([_, [, to]]) => {
-            yStore.set(to.id, to)
+          Object.values(history.changes.updated).forEach(([_, record]) => {
+            ymap.set(record.id, record)
           })
-          Object.entries(entry.changes.removed).forEach(([id, _]) => {
-            yStore.delete(id)
+          Object.values(history.changes.removed).forEach((record) => {
+            ymap.delete(record.id)
           })
         })
       },
       { scope: 'document', source: 'user' }
     )
 
-    // 2. Sync Yjs -> tldraw
-    yStore.on('change', (changes: Map<string, { action: string; newValue: any }>) => {
-      store.mergeRemoteChanges(() => {
-        changes.forEach((change, id) => {
-          if (change.action === 'delete') {
-            store.remove([id as any])
-          } else {
-            store.put([change.newValue as any])
+    // Push initial document state to Yjs if we are the first one in the room
+    if (isInitialSync) {
+      ydoc.transact(() => {
+        for (const record of store.allRecords()) {
+          if (!ymap.has(record.id)) {
+            ymap.set(record.id, record)
           }
-        })
+        }
       })
-    })
+      isInitialSync = false
+    }
 
     setStoreWithStatus({
       status: 'synced-remote',
@@ -75,11 +114,12 @@ export function useYjsStore({
     })
 
     return () => {
+      ymap.unobserve(handleChange)
       unlisten()
       provider.disconnect()
-      doc.destroy()
+      ydoc.destroy()
     }
-  }, [roomId, shapeUtils])
+  }, [store, ydoc, provider])
 
   return storeWithStatus
 }
