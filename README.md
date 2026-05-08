@@ -1,116 +1,82 @@
 <div align="center">
   <h1>🎨 Collaborative Whiteboard</h1>
-  <p>A real-time collaborative whiteboard application built with React, TypeScript, and Vite.</p>
+  <p>A fast, infinite-canvas real-time collaborative whiteboard built with React, Tldraw, and Yjs.</p>
 
   <!-- Visual Badges -->
   <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
   <img src="https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
   <img src="https://img.shields.io/badge/Vite-B73BFE?style=for-the-badge&logo=vite&logoColor=FFD62E" alt="Vite" />
+  <img src="https://img.shields.io/badge/Tldraw-FFB020?style=for-the-badge&logo=react&logoColor=white" alt="Tldraw" />
+  <img src="https://img.shields.io/badge/Yjs-333333?style=for-the-badge" alt="Yjs" />
 </div>
 
 ---
 
-## 📸 Preview
-
-> **Note:** Add a screenshot or animated GIF of your whiteboard application here!
-> 
-> `!App Preview`
-
 ## ✨ Features
 
-- **Real-time Collaboration:** Draw and interact with multiple users simultaneously.
-- **Rich Toolset:** Pens, shapes, text, and eraser tools.
-- **Fast & Responsive:** Powered by Vite for lightning-fast HMR and optimized builds.
-- **Type-Safe:** Written in TypeScript for robust and maintainable code.
+- **Infinite Canvas:** Powered by [Tldraw](https://tldraw.dev/), providing a beautiful, polished, and performant drawing experience out-of-the-box.
+- **Rich Toolset:** Use pens, erasers, arrows, text, shapes, and sticky notes.
+- **Real-Time Multiplayer:** Instant peer-to-peer synchronization powered by [Yjs](https://yjs.dev/) and WebRTC.
+- **No Backend Required:** Utilizes public WebRTC signaling servers so you can collaborate across the internet without deploying a custom database or WebSocket server.
+- **Private Rooms:** Automatically creates unique rooms based on the URL query parameter (e.g., `?room=my-secret-room`).
 
-## 🚀 Getting Started
+## 🛠️ Technologies
 
-1. Clone the repository:
+- **Frontend:** React, TypeScript, Vite
+- **Whiteboard Engine:** `tldraw`
+- **CRDT & Sync:** `yjs`, `@tldraw/yjs`, `y-webrtc`, `y-utility`
+
+---
+
+## 🚀 Getting Started Locally
+
+1. **Clone the repository:**
    ```bash
    git clone https://github.com/CUBeis/collaborative-whiteboard.git
    cd collaborative-whiteboard
    ```
-2. Install dependencies:
+
+2. **Install dependencies:**
    ```bash
    npm install
    ```
-3. Start the development server:
+
+3. **Start the development server:**
    ```bash
    npm run dev
    ```
 
+4. **Collaborate Locally:**
+   Open `http://localhost:5173` in two different browser windows to see real-time drawing in action!
+
 ---
 
-## 🛠️ Vite + React + TS Template Info
+## 🌐 How Multiplayer Works
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This application uses **WebRTC** for peer-to-peer data synchronization. When you open the application, it looks at the URL for a room ID:
+- `http://localhost:5173/` -> Connects to `default-whiteboard-room-v1`
+- `http://localhost:5173/?room=awesome-design` -> Connects to `awesome-design`
 
-Currently, two official plugins are available:
+To collaborate with friends, simply share the exact URL you are using. As long as you are all connected to the internet and on the same URL, Yjs will synchronize your screens automatically.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+> **Note:** WebRTC is peer-to-peer. The data lives in the browsers of the connected users. If everyone leaves the room, the drawing data is cleared.
 
-## React Compiler
+---
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## ☁️ Free Deployment
 
-## Expanding the ESLint configuration
+Since this project uses public signaling servers for WebRTC, you only need to host the static frontend files. It is 100% free to deploy.
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+### Option 1: Vercel (Recommended)
+1. Push your code to GitHub.
+2. Log into [Vercel](https://vercel.com/) and click **Add New** -> **Project**.
+3. Import your GitHub repository.
+4. Vercel will auto-detect Vite. Leave the default settings and click **Deploy**.
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+### Option 2: Netlify
+1. Push your code to GitHub.
+2. Log into [Netlify](https://www.netlify.com/) and click **Add new site** -> **Import an existing project**.
+3. Select your GitHub repository.
+4. Netlify will auto-detect Vite. Click **Deploy Site**.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
-
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+Once deployed, send the live `.vercel.app` or `.netlify.app` link to your friends and start drawing together instantly!

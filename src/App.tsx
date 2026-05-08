@@ -1,59 +1,45 @@
-import React, { useState, useCallback } from 'react';
-import { Canvas } from './components/Canvas';
-import { Toolbar } from './components/Toolbar';
-import { PropertiesPanel } from './components/PropertiesPanel';
-import { Stroke, DrawingTool } from './types';
-import { useCollaboration } from './hooks/useCollaboration';
+import { Tldraw } from 'tldraw'
+import 'tldraw/tldraw.css'
+import { useYjsStore } from './useYjsStore'
+
+// Extract a room ID from the URL or use a default
+const getRoomId = () => {
+  const params = new URLSearchParams(window.location.search);
+  const roomId = params.get('room');
+  if (roomId) return roomId;
+  
+  // If no room is specified, we use a default room for everyone to join
+  return 'default-whiteboard-room-v1';
+}
 
 function App() {
-  const [strokes, setStrokes] = useState<Stroke[]>([]);
-  const [color, setColor] = useState('#000000');
-  const [width, setWidth] = useState(4);
-  const [tool, setTool] = useState<DrawingTool>('pen');
+  const roomId = getRoomId();
+  const storeWithStatus = useYjsStore({ roomId });
 
-  const handleStrokeReceived = useCallback((stroke: Stroke) => {
-    setStrokes((prev) => [...prev, stroke]);
-  }, []);
-
-  const { broadcastStroke } = useCollaboration(handleStrokeReceived);
-
-  const handleStrokeComplete = (stroke: Stroke) => {
-    setStrokes((prev) => [...prev, stroke]);
-    broadcastStroke(stroke);
-  };
-
-  const handleClear = () => {
-    setStrokes([]);
-    // Note: Clearing is local only for now unless we broadcast a clear event
-  };
+  if (storeWithStatus.status === 'loading') {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen bg-gray-50">
+        <div className="text-xl text-gray-500 font-medium">Loading collaborative whiteboard...</div>
+      </div>
+    )
+  }
 
   return (
     <div className="relative w-full h-screen bg-gray-50 overflow-hidden">
-      <Canvas
-        strokes={strokes}
-        onStrokeComplete={handleStrokeComplete}
-        color={tool === 'eraser' ? '#ffffff' : color}
-        width={tool === 'eraser' ? 20 : width}
+      {/* 
+        Tldraw provides a complete, polished whiteboard experience.
+        The useYjsStore synchronizes the state via WebRTC, enabling real-time collaboration.
+      */}
+      <Tldraw 
+        store={storeWithStatus.store} 
+        autoFocus
       />
-
-      <Toolbar
-        currentTool={tool}
-        setTool={setTool}
-        onClear={handleClear}
-      />
-
-      <PropertiesPanel
-        color={color}
-        setColor={setColor}
-        width={width}
-        setWidth={setWidth}
-      />
-
-      <div className="absolute bottom-4 right-4 text-xs text-gray-400 pointer-events-none">
-        Open multiple tabs to collaborate
+      
+      <div className="absolute top-4 left-4 z-50 bg-white px-4 py-2 rounded-md shadow-sm border border-gray-200 text-sm font-medium">
+        Room: {roomId}
       </div>
     </div>
-  );
+  )
 }
 
-export default App;
+export default App
