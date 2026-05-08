@@ -1,30 +1,31 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { createTLStore, defaultShapeUtils } from 'tldraw'
-import type { TLAnyShapeUtilConstructor, TLRecord, TLStoreWithStatus } from 'tldraw'
+import type { TLRecord, TLStore } from 'tldraw'
 import * as Y from 'yjs'
 import { WebrtcProvider } from 'y-webrtc'
- 
-export function useYjsStore({
-  roomId,
-  shapeUtils = [] as TLAnyShapeUtilConstructor[],
-}: {
-  roomId: string
-  shapeUtils?: TLAnyShapeUtilConstructor[]
-}) {
-  const [storeWithStatus, setStoreWithStatus] = useState<TLStoreWithStatus>({ status: 'loading' })
 
-  const store = useMemo(() => createTLStore({
-    shapeUtils: [...defaultShapeUtils, ...shapeUtils],
-  }), [roomId])
+export function useYjsStore({ roomId }: { roomId: string }): TLStore | null {
+  // useState initializer ensures store is created exactly once
+  const [store] = useState<TLStore>(() =>
+    createTLStore({ shapeUtils: [...defaultShapeUtils] })
+  )
+  const [isReady, setIsReady] = useState(false)
+  // Prevent double-setup in any React mode
+  const setupDone = useRef(false)
 
   useEffect(() => {
+    if (setupDone.current) return
+    setupDone.current = true
+
     const ydoc = new Y.Doc()
     const provider = new WebrtcProvider(roomId, ydoc)
     const ymap = ydoc.getMap<TLRecord>('tldraw')
 
-    const handleChange = (event: Y.YMapEvent<TLRecord>) => {
+    // Yjs → tldraw
+    const handleYjsChange = (event: Y.YMapEvent<TLRecord>) => {
       const toRemove: TLRecord['id'][] = []
       const toPut: TLRecord[] = []
+
       event.changes.keys.forEach((change, key) => {
         if (change.action === 'add' || change.action === 'update') {
           const record = ymap.get(key)
@@ -33,6 +34,7 @@ export function useYjsStore({
           toRemove.push(key as TLRecord['id'])
         }
       })
+
       if (toRemove.length || toPut.length) {
         store.mergeRemoteChanges(() => {
           if (toRemove.length) store.remove(toRemove)
@@ -41,18 +43,18 @@ export function useYjsStore({
       }
     }
 
-    ymap.observe(handleChange)
+    ymap.observe(handleYjsChange)
 
-    // Push initial local state into Yjs
+    // Push initial store state into Yjs
     ydoc.transact(() => {
       for (const record of store.allRecords()) {
         if (!ymap.has(record.id)) ymap.set(record.id, record)
       }
     })
 
-    const unlisten = store.listen(
-      ({ changes, source }) => {
-        if (source !== 'user') return
+    // tldraw → Yjs
+    const unsub = store.listen(
+      ({ changes }) => {
         ydoc.transact(() => {
           Object.values(changes.added).forEach((r) => ymap.set(r.id, r))
           Object.values(changes.updated).forEach(([, r]) => ymap.set(r.id, r))
@@ -62,15 +64,15 @@ export function useYjsStore({
       { scope: 'document', source: 'user' }
     )
 
-    setStoreWithStatus({ status: 'synced-remote', connectionStatus: 'online', store })
+    setIsReady(true)
 
     return () => {
-      ymap.unobserve(handleChange)
-      unlisten()
+      ymap.unobserve(handleYjsChange)
+      unsub()
       provider.disconnect()
       ydoc.destroy()
     }
-  }, [store, roomId])
+  }, []) // empty deps — run once only
 
-  return storeWithStatus
+  return isReady ? store : null
 }
